@@ -160,10 +160,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 //            }
 //            bitmapList = null;
 //            System.gc();
+            BitmapFactory bitmapFactory = new BitmapFactory();
             for(String filePath : imagePathList) {
-//                encoder.addFrame(getBitmapFromFile(filePath));
-                BitmapTask bitmapTask = new BitmapTask();
-                bitmapTask.execute(filePath);
+                encoder.addFrame(bitmapFactory.decodeFile(filePath));
+                encoder.finish();
             }
 //            writeToFile(outputStream.toByteArray());
             return 0;
@@ -172,7 +172,6 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         @Override
         protected void onPostExecute(Integer integer) {
             super.onPostExecute(integer);
-            encoder.finish();
             writeGIFToFile(outputStream.toByteArray());
             Toast.makeText(MainActivity.this, "File saved", Toast.LENGTH_LONG).show();
         }
@@ -183,8 +182,6 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         @Override
         protected Void doInBackground(String... params) {
             String filePath = params[0];
-            BitmapFactory bitmapFactory = new BitmapFactory();
-            encoder.addFrame(bitmapFactory.decodeFile(filePath));
             return null;
         }
     }
