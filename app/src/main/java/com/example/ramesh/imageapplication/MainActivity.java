@@ -19,6 +19,7 @@ import android.hardware.Camera.PictureCallback;
 import android.hardware.Camera.ShutterCallback;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -29,7 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity implements SurfaceHolder.Callback {
-    private static final int NUMBER_OF_FRAMES = 2;
+    private static final int NUMBER_OF_FRAMES = 4;
     TextView testView;
 
     Camera camera;
@@ -42,12 +43,13 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     PictureCallback jpegCallback;
     int orientation;
     int photoCount;
-    private ArrayList<Bitmap> bitmapList;
     private ArrayList<String> imagePathList = new ArrayList<String>();
     private BitmapDrawable bitmapDrawable;
 
     AnimatedGifEncoder encoder;
     ByteArrayOutputStream outputStream;
+    private int screenWidth;
+    private int screenHeight;
 
     /**
      * Called when the activity is first created.
@@ -58,11 +60,15 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
         setContentView(R.layout.activity_main);
 
+        DisplayMetrics displaymetrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displaymetrics);
+        screenHeight = displaymetrics.heightPixels;
+        screenWidth = displaymetrics.widthPixels;
+
         encoder = new AnimatedGifEncoder();
         outputStream = new ByteArrayOutputStream();
         encoder.start(outputStream);
         photoCount = 0;
-        bitmapList = new ArrayList<Bitmap>();
         clickButton = (Button) findViewById(R.id.clickButton);
         surfaceView = (SurfaceView) findViewById(R.id.surfaceView);
         //        surfaceView.setBackground(getResources().getDrawable(android.R.drawable.btn_radio));
@@ -88,27 +94,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
         jpegCallback = new PictureCallback() {
             public void onPictureTaken(byte[] data, Camera camera) {
-//                FileOutputStream outStream = null;
-//                try {
-//                    outStream = new FileOutputStream(String.format("/sdcard/%d.jpg", System.currentTimeMillis()));
-//                    outStream.write(data);
-//                    outStream.close();
-//                    Log.d("Log", "onPictureTaken - wrote bytes: " + data.length);
-//                } catch (FileNotFoundException e) {
-//                    e.printStackTrace();
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                } finally {
-//                }
-//
-//
-//                Toast.makeText(getApplicationContext(), "Picture Saved", Toast.LENGTH_LONG).show();
                 Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
                 bitmap = rotateBitmap(bitmap);
                 setSurfaceBG(bitmap);
                 refreshCamera();
-
-//                bitmapList.add(bitmap);
                 imagePathList.add(writeToFile(bitmap));
                 photoCount++;
                 if (photoCount == NUMBER_OF_FRAMES) {
@@ -155,17 +144,11 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
         @Override
         protected Integer doInBackground(Bitmap... params) {
-//            for (Bitmap bitmap : bitmapList) {
-//                encoder.addFrame(bitmap);
-//            }
-//            bitmapList = null;
-//            System.gc();
             BitmapFactory bitmapFactory = new BitmapFactory();
             for(String filePath : imagePathList) {
-                encoder.addFrame(bitmapFactory.decodeFile(filePath));
-                encoder.finish();
+                encoder.addFrame(decodeSampledBitmapFromFile(filePath, screenWidth, screenHeight));
             }
-//            writeToFile(outputStream.toByteArray());
+            encoder.finish();
             return 0;
         }
 
@@ -177,13 +160,45 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         }
     }
 
-    private class BitmapTask extends AsyncTask<String, Void, Void> {
+//    public static Bitmap decodeSampledBitmapFromFile(String filepath,
+//                                                     int reqWidth, int reqHeight)
+    public static Bitmap decodeSampledBitmapFromFile(String filepath, int reqWidth, int reqHeight) {
 
-        @Override
-        protected Void doInBackground(String... params) {
-            String filePath = params[0];
-            return null;
+
+        // First decode with inJustDecodeBounds=true to check dimensions
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filepath, options);
+
+        // Calculate inSampleSize
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+
+        // Decode bitmap with inSampleSize set
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(filepath, options);
+    }
+
+    public static int calculateInSampleSize(
+            BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        // Raw height and width of image
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) > reqHeight
+                    && (halfWidth / inSampleSize) > reqWidth) {
+                inSampleSize *= 2;
+            }
         }
+
+        return inSampleSize;
     }
 
     public String writeGIFToFile(byte[] data) {
